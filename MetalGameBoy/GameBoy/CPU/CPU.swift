@@ -89,8 +89,12 @@ final class CPU {
     // MARK: - Step
     
     func step() -> Int {
+        if self.mmu.isDMAActive() {
+            self.mmu.tickDMA(4)
+            return 4
+        }
+        
         if isHalted {
-            
             if let ie = mmu.readByte(0xFFFF), let `if` = mmu.readByte(0xFF0F),
                (ie & `if`) > 0 {
                 isHalted = false
@@ -102,15 +106,19 @@ final class CPU {
         
         let interruptCycles = handleInterrupts()
         if interruptCycles > 0 {
-            isHalted = false
+            self.isHalted = false
+            self.mmu.tickDMA(interruptCycles)
             return interruptCycles
         }
         
         guard let instruction = fetch() else { return 0 }
         
         let decoded = self.decode.execute(instruction)
+        let cycles  = self.alu.execute(decoded)
         
-        return self.alu.execute(decoded)
+        self.mmu.tickDMA(cycles)
+        
+        return cycles
     }
     
     func reset() {

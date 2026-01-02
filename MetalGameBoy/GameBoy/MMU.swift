@@ -16,6 +16,8 @@ final class MMU {
     
     weak var timer: TimerGB?
     
+    private var dmaDelay: Int = 0
+    
     init() {
         self.memory = UnsafeMutablePointer.allocate(capacity: capacity)
         self.memory.initialize(repeating: 0xFF, count: capacity)
@@ -35,15 +37,40 @@ final class MMU {
     
     @inline(__always)
     func readByte(_ address: UInt16) -> UInt8? {
+        if self.dmaDelay > 0 {
+            // HRAM is Only accessible in DMA delay
+            if address >= 0xFF80 && address <= 0xFFFE {
+                return self.memory[Int(address)]
+            }
+            
+            return 0xFF
+        }
+        
+        
         if address == 0xFF04 { return timer!.div }
         if address == 0xFF00 { return 0xFF }
         if address == 0xFF44 { return self.ppu!.lineY }
         
-        if address < 0x8000 || (address >= 0xA000 && address < 0xC000) {
-            return self.cartridge!.read(address)
-        }
+        switch address {
+            
+        case 0x0000...0x7FFF:
+            return self.cartridge?.read(address) ?? 0xFF
+            
+        case 0x8000...0x9FFF:
+            guard let ppu = self.ppu else { return 0xFF }
+            return ppu.vram[Int(address - 0x8000)]
+            
+        case 0xA000...0xBFFF:
+            return self.cartridge?.read(address) ?? 0xFF
+            
+        case 0xFE00...0xFE9F:
+            guard let ppu = self.ppu else { return 0xFF }
+            return ppu.oam[Int(address - 0xFE00)]
         
-        return memory[Int(address)]
+            
+        default:
+            return self.memory[Int(address)]
+        }
     }
     
     @inline(__always)
@@ -51,21 +78,65 @@ final class MMU {
         _ value: UInt8,
         in address: UInt16
     ) {
-        
-        if address == 0xFF04 {
-            timer?.resetDiv()
+        if self.dmaDelay > 0 {
+            // HRAM is Only accessible in DMA delay
+            if address >= 0xFF80 && address <= 0xFFFE {
+                self.memory[Int(address)] = value
+            }
+            
             return
         }
         
-        if address == 0xFF44 {
+        if address == 0xFF04 { self.timer?.resetDiv(); return }
+        if address == 0xFF44 { return }
+        
+        if address == 0xFF46 {
+            performDMATransfer(value)
             return
         }
         
-        if address < 0x8000 || (address >= 0xA000 && address < 0xC000) {
-            cartridge?.write(address: address, value: value)
+        if address >= 0xFE00 && address <= 0xFE9F {
+            guard let ppu = self.ppu else { return }
+            ppu.oam[Int(address - 0xFE00)] = value
             return
         }
         
-        memory[Int(address)] = value
+        if address >= 0x8000 && address <= 0x9FFF {
+            guard let ppu = self.ppu else { return }
+            ppu.vram[Int(address - 0x8000)] = value
+            return
+        }
+                
+        if address >= 0x0000 && address <= 0x7FFF {
+            self.cartridge?.write(address, value: value)
+            return
+        }
+        
+        self.memory[Int(address)] = value
+    }
+    
+    private func performDMATransfer(_ value: UInt8) {
+        let sourceBase = UInt16(value) << 8
+        
+        guard let ppu = self.ppu else { return }
+                
+        for i in 0..<160 {
+            let sourceAddr = sourceBase + UInt16(i)
+            let byte = readByte(sourceAddr) ?? 0
+            ppu.oam[i] = byte
+        }
+        
+        self.dmaDelay = 160
+    }
+    
+    func tickDMA(_ cycles: Int) {
+        if self.dmaDelay > 0 {
+            self.dmaDelay -= cycles
+            if self.dmaDelay < 0 { self.dmaDelay = 0 }
+        }
+    }
+
+    func isDMAActive() -> Bool {
+        return self.dmaDelay > 0
     }
 }

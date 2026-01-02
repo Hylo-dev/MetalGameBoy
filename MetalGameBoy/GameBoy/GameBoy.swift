@@ -29,36 +29,25 @@ final class GameBoy {
     func boot(romData: Data) -> Bool {
         let cart = Cartridge(romData: romData)
         
-        let info = cart.parseHeader()
-        print("Cartridge Loaded: \(info.title)")
+//        let info = cart.parseHeader()
+//        print("Cartridge Loaded: \(info.title)")
         
         self.mmu.load(cartridge: cart, ppu: self.ppu)
         self.cpu.reset()
     
         return true
     }
-    
+        
     func runFrame() {
-        let maxCycles       = 70224
+        let maxCycles = 70224
         var cyclesThisFrame = 0
-        var pendingCycles   = 0
         
         while cyclesThisFrame < maxCycles {
             let cycles = cpu.step()
-            
             cyclesThisFrame += cycles
-            pendingCycles   += cycles
             
-            if pendingCycles >= 16 {
-                self.ppu.step(cycles)
-                self.timer.step(cycles)
-                pendingCycles = 0
-            }
-        }
-        
-        if pendingCycles > 0 {
-            self.ppu.step(pendingCycles)
-            self.timer.step(pendingCycles)
+            self.ppu.step(cycles)
+            self.timer.step(cycles)
         }
     }
 }

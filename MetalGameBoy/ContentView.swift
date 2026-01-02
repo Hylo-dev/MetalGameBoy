@@ -33,7 +33,11 @@ struct ContentView: View {
     }
     
     func bootGame() {
-        guard let url = Bundle.main.url(forResource: "tetris", withExtension: "gb") else { return }
+        guard let url = Bundle.main.url(
+            forResource: "mario_land",
+            withExtension: "gb"
+        ) else { return }
+        
         do {
             let data = try Data(contentsOf: url)
             if gameboy.boot(romData: data) {

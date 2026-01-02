@@ -433,22 +433,26 @@ struct ALU {
     private func pushWord(_ value: UInt16) {
         let high = UInt8((value >> 8) & 0xFF)
         let low  = UInt8(value & 0xFF)
-        
-        self.cpu.sp -= 1
+            
+        // CORRETTO: Modifica sp direttamente permettendo l'underflow (wrap-around)
+        self.cpu.sp &-= 1
         self.cpu.mmu.writeByte(high, in: self.cpu.sp)
-        
-        self.cpu.sp -= 1
+            
+        self.cpu.sp &-= 1
         self.cpu.mmu.writeByte(low, in: self.cpu.sp)
     }
-    
-    private func popWord() -> UInt16{
-        let low = self.cpu.mmu.readByte(self.cpu.sp)
-        self.cpu.sp += 1
         
-        let high = self.cpu.mmu.readByte(self.cpu.sp)
-        self.cpu.sp += 1
-        
-        return (UInt16(high!) << 8) | UInt16(low!)
+    private func popWord() -> UInt16 {
+        // Usa il coalescing (?? 0) per evitare crash se la lettura fallisce
+        let low = self.cpu.mmu.readByte(self.cpu.sp) ?? 0
+            
+        // CORRETTO: Modifica sp direttamente permettendo l'overflow
+        self.cpu.sp &+= 1
+            
+        let high = self.cpu.mmu.readByte(self.cpu.sp) ?? 0
+        self.cpu.sp &+= 1
+            
+        return (UInt16(high) << 8) | UInt16(low)
     }
     
     // MARK: - Jump

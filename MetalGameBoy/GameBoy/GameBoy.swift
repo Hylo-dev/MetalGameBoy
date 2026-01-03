@@ -29,9 +29,6 @@ final class GameBoy {
     func boot(romData: Data) -> Bool {
         let cart = Cartridge(romData: romData)
         
-//        let info = cart.parseHeader()
-//        print("Cartridge Loaded: \(info.title)")
-        
         self.mmu.load(cartridge: cart, ppu: self.ppu)
         self.cpu.reset()
     
@@ -49,5 +46,29 @@ final class GameBoy {
             self.ppu.step(cycles)
             self.timer.step(cycles)
         }
+    }
+    
+    func keyUp(_ key: GameBoyKey) {
+        switch key {
+            case .right, .left, .up, .down:
+                self.mmu.directionButtons |= key.byte
+            
+            case .a, .b, .select, .start:
+                self.mmu.actionButtons |= key.byte
+        }
+        
+        self.mmu.requestInterrupt(.joypad)
+    }
+    
+    func keyDown(_ key: GameBoyKey) {
+        switch key {
+            case .right, .left, .up, .down:
+                self.mmu.directionButtons &= ~key.byte
+            
+            case .a, .b, .select, .start:
+                self.mmu.actionButtons &= ~key.byte
+        }
+        
+        self.mmu.requestInterrupt(.joypad)
     }
 }

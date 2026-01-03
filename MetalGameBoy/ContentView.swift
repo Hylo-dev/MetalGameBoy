@@ -1,9 +1,16 @@
 import SwiftUI
 
 struct ContentView: View {
-    // Nota: Ora GameBoy deve essere una classe (Reference Type) condivisa
     let gameboy = GameBoy()
-    @State private var isRunning = false
+    
+    @StateObject
+    private var inputManager = GameControllerManager()
+    
+    @State
+    private var isRunning = false
+    
+    @FocusState
+    private var isFocused: Bool
     
     var body: some View {
         VStack {
@@ -15,6 +22,7 @@ struct ContentView: View {
                 MetalGameBoyView(gameboy: gameboy)
                     .frame(width: 160 * 2, height: 144 * 2)
                     .border(Color.gray, width: 2)
+                
             } else {
                 Rectangle()
                     .fill(Color.gray)
@@ -29,6 +37,17 @@ struct ContentView: View {
                 .padding()
                 .background(Color.blue).foregroundColor(.white).cornerRadius(10)
             }
+        }
+        .focusable()
+        .focused($isFocused)
+        .focusEffectDisabled()
+        .onAppear {
+            self.isFocused = true
+            self.inputManager.gameboy = gameboy
+            self.inputManager.startLooking()
+        }
+        .onKeyPress(phases: [.down, .repeat]) { _ in
+            return .handled
         }
     }
     

@@ -354,11 +354,7 @@ final class PPU {
         
     @inline(__always)
     private func putPixel(x: Int, color: (UInt8, UInt8, UInt8)) {
-        // If the pixel is outside on the screen, not draw this
-        if x < 0 || x >= 160 || lineY >= 144 { return }
-            
         let index = (Int(lineY) * 160 + x) * 4
-        if index < 0 || index >= bufferSize { return }
             
         frameBuffer[index]     = color.0
         frameBuffer[index + 1] = color.1

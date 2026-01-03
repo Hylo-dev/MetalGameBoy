@@ -14,9 +14,14 @@ final class MMU {
     private var cartridge: Cartridge?
     private var ppu: PPU?
     
-    weak var timer: TimerGB?
+    unowned var timer: TimerGB!
     
     private var dmaDelay: Int = 0
+    
+    var actionButtons: UInt8 = 0x0F    // Start, Select, B, A
+    var directionButtons: UInt8 = 0x0F // Down, Up, Left, Right
+    
+    var joyp: UInt8 = 0xFF // JOYP Reg
     
     init() {
         self.memory = UnsafeMutablePointer.allocate(capacity: capacity)
@@ -46,9 +51,23 @@ final class MMU {
             return 0xFF
         }
         
+        if address == 0xFF00 {
+            var output = (self.joyp & 0xF0) | 0x0F
+            
+            // Buttons
+            if (self.joyp & 0x20) == 0 {
+                output &= self.actionButtons
+            }
+            
+            // D-Pad
+            if (self.joyp & 0x10) == 0 {
+                output &= self.directionButtons
+            }
+            
+            return output
+        }
         
-        if address == 0xFF04 { return timer!.div }
-        if address == 0xFF00 { return 0xFF }
+        if address == 0xFF04 { return timer.div }
         if address == 0xFF44 { return self.ppu!.lineY }
         
         switch address {
@@ -87,7 +106,16 @@ final class MMU {
             return
         }
         
-        if address == 0xFF04 { self.timer?.resetDiv(); return }
+        // Write input mode
+        if address == 0xFF00 {
+            let oldBits = self.joyp & 0xCF
+            let newSelection = value & 0x30
+                
+            self.joyp = oldBits | newSelection
+            return
+        }
+        
+        if address == 0xFF04 { self.timer.resetDiv(); return }
         if address == 0xFF44 { return }
         
         if address == 0xFF46 {
@@ -138,5 +166,13 @@ final class MMU {
 
     func isDMAActive() -> Bool {
         return self.dmaDelay > 0
+    }
+    
+    func requestInterrupt(_ type: InterruptType) {
+        guard var currentIF = self.readByte(0xFF0F) else { return }
+        
+        currentIF = currentIF | type.bitMask
+        
+        self.writeByte(currentIF, in: 0xFF0F)
     }
 }

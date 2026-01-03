@@ -113,6 +113,8 @@ final class CPU {
         
         guard let instruction = fetch() else { return 0 }
         
+        if instruction == 0x00 { return 4 }
+        
         let decoded = self.decode.execute(instruction)
         let cycles  = self.alu.execute(decoded)
         
